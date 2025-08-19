@@ -2,12 +2,12 @@
 set -e
 
 # ==================================
-# Default values
+# Default values (only optional args!)
 # ==================================
 AZDO_URL=""
 AZDO_TOKEN=""
-AZDO_POOL="runner-thanos"
-AZDO_AGENT="agent-mossad"
+AZDO_POOL=""
+AZDO_AGENT=""
 AZDO_WORK="_work"
 AZDO_AGENT_VERSION="4.259.0"
 
@@ -50,13 +50,35 @@ if [[ -z "$AZDO_URL" || -z "$AZDO_TOKEN" || -z "$AZDO_POOL" || -z "$AZDO_AGENT" 
 fi
 
 # ==================================
+# Detect OS and pick package
+# ==================================
+OS_TYPE="$(uname -s)"
+case "$OS_TYPE" in
+  Linux*)   AGENT_PKG="vsts-agent-linux-x64-${AZDO_AGENT_VERSION}.tar.gz" ;;
+  Darwin*)  AGENT_PKG="vsts-agent-osx-x64-${AZDO_AGENT_VERSION}.tar.gz" ;;
+  MINGW*|MSYS*|CYGWIN*) AGENT_PKG="vsts-agent-win-x64-${AZDO_AGENT_VERSION}.zip" ;;
+  *)
+    echo "❌ Unsupported OS: $OS_TYPE"
+    exit 1
+    ;;
+esac
+
+# ==================================
 # Install Agent
 # ==================================
 mkdir -p ~/myagent && cd ~/myagent
 
-echo "⬇️  Downloading agent version $AZDO_AGENT_VERSION..."
-wget -q https://vstsagentpackage.azureedge.net/agent/${AZDO_AGENT_VERSION}/vsts-agent-linux-x64-${AZDO_AGENT_VERSION}.tar.gz
-tar zxvf vsts-agent-linux-x64-${AZDO_AGENT_VERSION}.tar.gz
+echo "⬇️  Downloading agent version $AZDO_AGENT_VERSION for $OS_TYPE..."
+wget --show-progress --progress=bar:force:noscroll \
+  "https://download.agent.dev.azure.com/agent/${AZDO_AGENT_VERSION}/${AGENT_PKG}" \
+  -O "$AGENT_PKG"
+
+# Extract (tar for Linux/Mac, unzip for Windows)
+if [[ "$AGENT_PKG" == *.tar.gz ]]; then
+  tar zxvf "$AGENT_PKG"
+else
+  unzip "$AGENT_PKG"
+fi
 
 # ==================================
 # Configure Agent
